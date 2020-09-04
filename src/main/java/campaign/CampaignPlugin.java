@@ -1,4 +1,4 @@
-package example;
+package campaign;
 
 import arc.*;
 import arc.util.*;
@@ -9,10 +9,10 @@ import mindustry.game.EventType.*;
 import mindustry.gen.*;
 import mindustry.plugin.Plugin;
 
-public class ExamplePlugin extends Plugin{
+public class CampaignPlugin extends Plugin{
 
     //register event handlers and create variables in the constructor
-    public ExamplePlugin(){
+    public CampaignPlugin(){
         //listen for a block selection event
         Events.on(BuildSelectEvent.class, event -> {
             if(!event.breaking && event.builder != null && event.builder.buildRequest() != null && event.builder.buildRequest().block == Blocks.thoriumReactor && event.builder instanceof Player){
