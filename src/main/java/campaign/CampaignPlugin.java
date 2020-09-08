@@ -79,13 +79,20 @@ public class CampaignPlugin extends Plugin{
 
             prefs = Preferences.userRoot().node(this.getClass().getName());
             currMap = prefs.getInt("mapchoice",0);
-            prefs.putInt("mapchoice", currMap > 1 ? currMap-1 : 1); // This is just backup so the server reverts to first map if a map crashes
+            prefs.putInt("mapchoice", currMap > 1 ? currMap-1 : 1); // This is just backup so the server reverts to previous map if a map crashes
 
             mindustry.maps.Map map = maps.customMaps().get(currMap);
             world.loadMap(map);
             String[] values = world.getMap().description().replaceAll("\\s+","").split(",");
             launchWave = Integer.parseInt(values[0]);
-            techLevel = Integer.parseInt(values[1]);
+            //techLevel = Integer.parseInt(values[1]);
+            techLevel = 3;
+            switch(techLevel){
+                case 0: rules.bannedBlocks = CampaignData.tech0Banned; break;
+                case 1: rules.bannedBlocks = CampaignData.tech1Banned; break;
+                case 2: rules.bannedBlocks = CampaignData.tech2Banned; break;
+                case 3: rules.bannedBlocks = CampaignData.tech3Banned; break;
+            }
             rules.spawns = world.getMap().rules().spawns;
 
             Log.info("Map " + map.name() + " loaded");
