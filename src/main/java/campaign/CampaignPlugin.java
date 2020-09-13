@@ -14,12 +14,15 @@ import mindustry.type.Item;
 import mindustry.type.ItemStack;
 import mindustry.world.blocks.storage.CoreBlock;
 
+import java.util.Random;
 import java.util.prefs.Preferences;
 
 import static mindustry.Vars.*;
 import static mindustry.Vars.netServer;
 
 public class CampaignPlugin extends Plugin{
+
+    private Random rand = new Random(System.currentTimeMillis());
 
     private Preferences prefs;
     private int launchWave;
@@ -29,9 +32,15 @@ public class CampaignPlugin extends Plugin{
 
     private final Rules rules = new Rules();
     private int currMap;
+    private mindustry.maps.Map loadedMap;
+    private String mapID;
+
+    private final DBInterface mapDB = new DBInterface("map_data");
 
     @Override
     public void init(){
+
+        mapDB.connect("data/server_data.db");
 
         init_rules();
 
@@ -43,6 +52,10 @@ public class CampaignPlugin extends Plugin{
             }else if((launchWave - wave) % 5 == 0){
                 Call.sendMessage("[scarlet]" + (launchWave - wave) + "[accent] waves remain");
             }
+        });
+
+        Events.on(EventType.PlayerJoinSecondary.class, event ->{
+            event.player.sendMessage(motd());
         });
 
         Events.on(EventType.UnitDestroyEvent.class, event ->{
@@ -71,7 +84,7 @@ public class CampaignPlugin extends Plugin{
 
     @Override
     public void registerServerCommands(CommandHandler handler) {
-        handler.register("campaign", "Begin hosting the Campaign gamemode.", args -> {
+        handler.register("campaign", "[map]", "Begin hosting the Campaign gamemode.", args -> {
             if (!Vars.state.is(GameState.State.menu)) {
                 Log.err("Stop the server first.");
                 return;
@@ -79,21 +92,34 @@ public class CampaignPlugin extends Plugin{
 
             prefs = Preferences.userRoot().node(this.getClass().getName());
             currMap = prefs.getInt("mapchoice",0);
-            prefs.putInt("mapchoice", currMap > 1 ? currMap-1 : 1); // This is just backup so the server reverts to previous map if a map crashes
+            int i = 0;
+            for(mindustry.maps.Map map : maps.customMaps()){
+                Log.info(i + ": " + map.name());
+                i += 1;
+            }
+
+            if(args.length != 0){
+                currMap = Integer.parseInt(args[0]);
+            }
+
 
             mindustry.maps.Map map = maps.customMaps().get(currMap);
+            Log.info("Loading map " + map.name());
             world.loadMap(map);
+            loadedMap = map;
             String[] values = world.getMap().description().replaceAll("\\s+","").split(",");
             launchWave = Integer.parseInt(values[0]);
-            //techLevel = Integer.parseInt(values[1]);
-            techLevel = 3;
+            techLevel = Integer.parseInt(values[1]);
             switch(techLevel){
-                case 0: rules.bannedBlocks = CampaignData.tech0Banned; break;
-                case 1: rules.bannedBlocks = CampaignData.tech1Banned; break;
-                case 2: rules.bannedBlocks = CampaignData.tech2Banned; break;
-                case 3: rules.bannedBlocks = CampaignData.tech3Banned; break;
+                case 0: rules.bannedBlocks = CampaignData.tech0Banned; rules.loadout = CampaignData.tech0loadout; break;
+                case 1: rules.bannedBlocks = CampaignData.tech1Banned; rules.loadout = CampaignData.tech1loadout; break;
+                case 2: rules.bannedBlocks = CampaignData.tech2Banned; rules.loadout = CampaignData.tech2loadout; break;
+                case 3: rules.bannedBlocks = CampaignData.tech3Banned; rules.loadout = CampaignData.tech3loadout; break;
             }
             rules.spawns = world.getMap().rules().spawns;
+            rules.waveSpacing = world.getMap().rules().waveSpacing;
+            rules.launchWaveMultiplier = 3;
+            rules.bossWaveMultiplier = 3;
 
             Log.info("Map " + map.name() + " loaded");
 
@@ -105,18 +131,11 @@ public class CampaignPlugin extends Plugin{
             netServer.openServer();
 
             prefs.putInt("mapchoice", currMap);
-
-        });
-
-        handler.register("crash", "<name/uuid>", "Crashes the name/uuid", args ->{
-            for(Player player : playerGroup.all()){
-                if(player.uuid.equals(args[0]) || Strings.stripColors(player.name).equals(args[0])){
-                    player.sendMessage(null);
-                    Log.info("Done.");
-                    return;
-                }
+            mapID = map.file.name().split("_")[0];
+            if(!mapDB.hasRow(mapID)){
+                mapDB.addRow(mapID);
             }
-            Log.info("Player not found!");
+            mapDB.loadRow(mapID);
         });
     }
 
@@ -124,6 +143,11 @@ public class CampaignPlugin extends Plugin{
 
         // Register the re-rank command
         handler.<Player>register("start", "[sky]Start the next wave (donators only)", (args, player) -> {
+            if(player.donateLevel < 1){
+                player.sendMessage("[accent]Only donators have access to this command");
+                return;
+            }
+
             boolean allDead = true;
             for(Unit unit : unitGroup.all()){
                 if(unit.getTeam() == Team.crux){
@@ -139,6 +163,18 @@ public class CampaignPlugin extends Plugin{
             }
 
         });
+
+        handler.<Player>register("stats", "Display the stats for this map", (args, player) -> {
+            player.sendMessage("[gold]All time score record: [scarlet]" + mapDB.safeGet(mapID, "allRecord") +
+                    "\n[accent]Monthly score record: [scarlet]" + mapDB.safeGet(mapID, "monthRecord") +
+                    "\n[accent]Total times beaten: [scarlet]" + mapDB.safeGet(mapID, "wins") +
+                    "\n[accent]Total times failed: [scarlet]" + mapDB.safeGet(mapID, "losses"));
+        });
+
+        handler.<Player>register("score", "Display the teams current score", (args, player) -> {
+            player.sendMessage("[gold]Score: [scarlet]" + calculateScore());
+        });
+
     }
 
 
@@ -147,23 +183,44 @@ public class CampaignPlugin extends Plugin{
         rules.respawnTime = 5 * 60;
         rules.enemyCheat = true;
         rules.waves = true;
-        rules.waveSpacing = 60 * 60;
-        rules.launchWaveMultiplier = 3;
-        rules.bossWaveMultiplier = 3;
         rules.buildSpeedMultiplier = 1.5f;
         rules.canGameOver = false;
     }
 
     void endgame(boolean win){
         if(win){
+
             int score = calculateScore();
-            prefs.putInt("mapchoice", currMap+1);
-            Call.onInfoMessage("[green]Congratulations! You survived.\n[accent]Score: [scarlet]" + score);
+            int nextMap = currMap;
+            while(nextMap == currMap){
+                nextMap = rand.nextInt(maps.customMaps().size-1);
+            }
+            prefs.putInt("mapchoice", nextMap);
+            String s = "";
+            if(score > (int) mapDB.safeGet(mapID, "allRecord")){
+                mapDB.safePut(mapID, "allRecord", score);
+                s += "[gold]New all time score record!\n\n";
+            }else
+            if(score > (int) mapDB.safeGet(mapID, "monthRecord")){
+                mapDB.safePut(mapID, "monthRecord", score);
+                s += "[acid]New monthly score record!\n\n";
+            }
+            s += "[green]Congratulations! You survived.\n[accent]All time score record: [pink]" + mapDB.safeGet(mapID, "allRecord") +
+            "\n[accent]Month score record: [scarlet]" + mapDB.safeGet(mapID, "allRecord");
+            s += "\n[accent]Score: [scarlet]" + score;
+
+            mapDB.safePut(mapID, "wins", (int) mapDB.safeGet(mapID, "wins") + 1);
+
+
+            Call.onInfoMessage(s);
         }else{
+            mapDB.safePut(mapID, "losses", (int) mapDB.safeGet(mapID, "losses") + 1);
             Call.onInfoMessage("[scarlet]Bad luck! You died.");
         }
 
-        Time.runTask(60f * 10f, () -> {
+        mapDB.saveRow(mapID);
+
+        Time.runTask(60f * 20f, () -> {
 
             for(Player player : playerGroup.all()) {
                 Call.onConnect(player.con, "aamindustry.play.ai", 6567);
@@ -185,5 +242,14 @@ public class CampaignPlugin extends Plugin{
             }
         }
         return score;
+    }
+
+    String motd(){
+        String ret = "[accent]Welcome to [#4d004d]{[purple]AA[#4d004d]} [sky]Campaign!\n[accent]Map name: [white]" + loadedMap.name() +
+         "\n[accent]Author: [white]" + loadedMap.author() + "\n\n[gold]All time score record: [scarlet]" + mapDB.safeGet(mapID, "allRecord") +
+                "\n[accent]Monthly score record: [scarlet]" + mapDB.safeGet(mapID, "monthRecord") + "\n[accent]Survive until wave [scarlet]" +
+                launchWave + "[accent] to launch and win!";
+        return ret;
+
     }
 }

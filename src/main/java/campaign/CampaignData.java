@@ -1,8 +1,11 @@
 package campaign;
 
+import arc.struct.Array;
 import arc.struct.ObjectSet;
 import mindustry.Vars;
 import mindustry.content.Blocks;
+import mindustry.content.Items;
+import mindustry.type.ItemStack;
 import mindustry.world.Block;
 
 import java.util.Collections;
@@ -25,6 +28,29 @@ public class CampaignData {
         aMap.put("phase-frabic", 5f);
         aMap.put("surge-alloy", 6f);
         itemValues = Collections.unmodifiableMap(aMap);
+    }
+
+    public static final Array<ItemStack> tech0loadout;
+    static {
+        tech0loadout = ItemStack.list(Items.copper, 500, Items.lead, 500);
+    }
+
+    public static final Array<ItemStack> tech1loadout;
+    static {
+        tech1loadout = ItemStack.list(Items.copper, 1000, Items.lead, 1000,
+                Items.graphite, 500);
+    }
+
+    public static final Array<ItemStack> tech2loadout;
+    static {
+        tech2loadout = ItemStack.list(Items.copper, 2000, Items.lead, 2000,
+                Items.graphite, 1000, Items.titanium, 1000, Items.silicon, 500, Items.metaglass, 500);
+    }
+
+    public static final Array<ItemStack> tech3loadout;
+    static {
+        tech3loadout = ItemStack.list(Items.copper, 4000, Items.lead, 4000,
+                Items.graphite, 2000, Items.titanium, 2000, Items.silicon, 1000, Items.metaglass, 1000);
     }
 
     public static final ObjectSet<Block> tech0Banned;
@@ -69,6 +95,8 @@ public class CampaignData {
         tech1Banned.remove(Blocks.dartPad);
         tech1Banned.remove(Blocks.mender);
         tech1Banned.remove(Blocks.message);
+        tech1Banned.remove(Blocks.draugFactory);
+        tech1Banned.remove(Blocks.combustionGenerator);
     }
 
     public static final ObjectSet<Block> tech2Banned;
