@@ -14,6 +14,7 @@ import mindustry.type.Item;
 import mindustry.type.ItemStack;
 import mindustry.world.blocks.storage.CoreBlock;
 
+import java.util.HashMap;
 import java.util.Random;
 import java.util.prefs.Preferences;
 
@@ -35,20 +36,30 @@ public class CampaignPlugin extends Plugin{
     private mindustry.maps.Map loadedMap;
     private String mapID;
 
+    private HashMap<String, CustomPlayer> uuidMapping = new HashMap<>();
+
     private final DBInterface mapDB = new DBInterface("map_data");
+    private final DBInterface playerDB = new DBInterface("player_data");
 
     @Override
     public void init(){
 
         mapDB.connect("data/server_data.db");
+        playerDB.connect(mapDB.conn);
 
         init_rules();
 
         Events.on(EventType.WaveEvent.class, event ->{
+
+            for(Player player : playerGroup.all()){
+                playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 10*(player.donateLevel + 1));
+                player.sendMessage("[accent]+[scarlet]" + 10*(player.donateLevel + 1) + "[accent] xp for surviving");
+            }
             wave ++;
             if(wave == launchWave){
-                Call.sendMessage("[scarlet]FINAL WAVE!\n[accent]Survive this to progress to the next map");
+                Call.sendMessage("[scarlet]LAUNCH WAVE!\n[accent]Survive this to be able to launch");
                 finalWave = true;
+                state.rules.waitForWaveToEnd = true;
             }else if((launchWave - wave) % 5 == 0){
                 Call.sendMessage("[scarlet]" + (launchWave - wave) + "[accent] waves remain");
             }
@@ -56,6 +67,18 @@ public class CampaignPlugin extends Plugin{
 
         Events.on(EventType.PlayerJoinSecondary.class, event ->{
             event.player.sendMessage(motd());
+            if(!playerDB.hasRow(event.player.uuid)){
+                playerDB.addRow(event.player.uuid);
+            }
+            playerDB.loadRow(event.player.uuid);
+
+            if(!uuidMapping.containsKey(event.player.uuid)){
+                int xp = (int) playerDB.safeGet(event.player.uuid, "xp");
+                uuidMapping.put(event.player.uuid, new CustomPlayer(event.player, xp));
+            }
+
+            event.player.name = StringHandler.determineRank((int) playerDB.safeGet(event.player.uuid, "xp")) + " " + event.player.name;
+
         });
 
         Events.on(EventType.UnitDestroyEvent.class, event ->{
@@ -78,6 +101,10 @@ public class CampaignPlugin extends Plugin{
                 endgame(false);
             }
 
+        });
+
+        Events.on(EventType.PlayerLeave.class, event -> {
+            savePlayerData(event.player.uuid);
         });
     }
 
@@ -137,11 +164,67 @@ public class CampaignPlugin extends Plugin{
             }
             mapDB.loadRow(mapID);
         });
+
+        handler.register("nextmap", "<map>", "End the game and force start the specified map.", args -> {
+            endgame(false);
+            prefs.putInt("mapchoice", Integer.parseInt(args[0]));
+            Log.info("Game ended with next map " + args[0]);
+
+        });
+
+        handler.register("setxp", "<uuid> <xp>", "Set the xp of a player", args -> {
+            int newXp;
+            try{
+                newXp = Integer.parseInt(args[1]);
+            }catch(NumberFormatException e){
+                Log.info("Invalid xp input '" + args[1] + "'");
+                return;
+            }
+
+            if(!playerDB.entries.containsKey(args[0])){
+                playerDB.loadRow(args[0]);
+                playerDB.safePut(args[0],"xp", newXp);
+                playerDB.saveRow(args[0]);
+            }else{
+                playerDB.safePut(args[0],"xp", newXp);
+            }
+            Log.info("Set uuid " + args[0] + " to have xp of " + args[1]);
+
+        });
     }
 
     public void registerClientCommands(CommandHandler handler) {
 
-        // Register the re-rank command
+        handler.<Player>register("info", "Display info about the gamemode", (args, player) -> {
+            player.sendMessage("[#4d004d]{[purple]AA[#4d004d]}[sky]Campaign [accent] is essentially Survival but" +
+                    " there are tech levels and you win by launching at a certain wave.\n\n" +
+                    "There are [scarlet]4[accent] tech levels:\n" +
+                    "[gold] 0.[accent]Tutorial level, only duos and scatters\n" +
+                    "[gold] 1.[accent]Early game, basic power and draug miners\n" +
+                    "[gold] 2.[accent]Mid game, Everything except plastanium, phase and surge\n" +
+                    "[gold] 3.[accent]End game, all technology available\n");
+        });
+
+
+        handler.<Player>register("xp", "[sky]Show your xp", (args, player) -> {
+            int xp = (int) playerDB.safeGet(player.uuid, "xp");
+            int leftover = xp % 60000;
+
+            String s = "[scarlet]" + xp + "[accent] xp\n";/*nGet [scarlet]" + leftover + "[accent] more xp for 1 additional ";
+            if(leftover < 10000){
+                s += "[lime]Level 1";
+            }else if (leftover < 20000){
+                s += "[acid]Level 2";
+            } else{
+                s += "[green]Level 3";
+            }
+            s += "[accent] boost!\n";*/
+
+            String nextRank = StringHandler.determineRank(xp+50000);
+            player.sendMessage(s + "Reach [scarlet]" + (xp/50000+1)*50000 + "[accent] xp to reach " + nextRank + "[accent] rank.");
+
+        });
+
         handler.<Player>register("start", "[sky]Start the next wave (donators only)", (args, player) -> {
             if(player.donateLevel < 1){
                 player.sendMessage("[accent]Only donators have access to this command");
@@ -185,28 +268,47 @@ public class CampaignPlugin extends Plugin{
         rules.waves = true;
         rules.buildSpeedMultiplier = 1.5f;
         rules.canGameOver = false;
+        rules.buildSpeedMultiplier = 2;
     }
+
 
     void endgame(boolean win){
         if(win){
 
+            for(Player player : playerGroup.all()){
+                playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 500*(player.donateLevel + 1));
+                player.sendMessage("[accent]+[scarlet]" + 500*(player.donateLevel + 1) + "[accent] xp for escaping");
+            }
+
             int score = calculateScore();
             int nextMap = currMap;
-            while(nextMap == currMap){
-                nextMap = rand.nextInt(maps.customMaps().size-1);
+            while(nextMap == currMap) {
+                nextMap = rand.nextInt(maps.customMaps().size - 1);
             }
+
             prefs.putInt("mapchoice", nextMap);
             String s = "";
+
+            // TODO: ADD A ZERO TO THE XP BONUS' FOR RECORDS AFTER A MONTH
+
             if(score > (int) mapDB.safeGet(mapID, "allRecord")){
                 mapDB.safePut(mapID, "allRecord", score);
+                mapDB.safePut(mapID, "monthRecord", score);
                 s += "[gold]New all time score record!\n\n";
-            }else
-            if(score > (int) mapDB.safeGet(mapID, "monthRecord")){
+                for(Player player : playerGroup.all()){
+                    playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 500*(player.donateLevel + 1));
+                    player.sendMessage("[gold]+[scarlet]" + 500*(player.donateLevel + 1) + "[gold] xp for setting an all time record!");
+                }
+            }else if(score > (int) mapDB.safeGet(mapID, "monthRecord")){
                 mapDB.safePut(mapID, "monthRecord", score);
                 s += "[acid]New monthly score record!\n\n";
+                for(Player player : playerGroup.all()){
+                    playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 100*(player.donateLevel + 1));
+                    player.sendMessage("[accent]+[scarlet]" + 100*(player.donateLevel + 1) + "[accent] xp for setting a monthly record!");
+                }
             }
             s += "[green]Congratulations! You survived.\n[accent]All time score record: [pink]" + mapDB.safeGet(mapID, "allRecord") +
-            "\n[accent]Month score record: [scarlet]" + mapDB.safeGet(mapID, "allRecord");
+            "\n[accent]Month score record: [scarlet]" + mapDB.safeGet(mapID, "monthRecord");
             s += "\n[accent]Score: [scarlet]" + score;
 
             mapDB.safePut(mapID, "wins", (int) mapDB.safeGet(mapID, "wins") + 1);
@@ -218,9 +320,10 @@ public class CampaignPlugin extends Plugin{
             Call.onInfoMessage("[scarlet]Bad luck! You died.");
         }
 
-        mapDB.saveRow(mapID);
+
 
         Time.runTask(60f * 20f, () -> {
+            mapDB.saveRow(mapID);
 
             for(Player player : playerGroup.all()) {
                 Call.onConnect(player.con, "aamindustry.play.ai", 6567);
@@ -232,6 +335,11 @@ public class CampaignPlugin extends Plugin{
             Log.info("Game ended successfully.");
             Time.runTask(60f*2, () -> System.exit(2));
         });
+    }
+
+    void savePlayerData(String uuid){
+        Log.info("Saving " + uuid + " data...");
+        playerDB.saveRow(uuid);
     }
 
     int calculateScore(){
@@ -246,7 +354,7 @@ public class CampaignPlugin extends Plugin{
 
     String motd(){
         String ret = "[accent]Welcome to [#4d004d]{[purple]AA[#4d004d]} [sky]Campaign!\n[accent]Map name: [white]" + loadedMap.name() +
-         "\n[accent]Author: [white]" + loadedMap.author() + "\n\n[gold]All time score record: [scarlet]" + mapDB.safeGet(mapID, "allRecord") +
+         "\n[accent]Author: [white]" + loadedMap.author() + "\n[accent]Tech level: [scarlet]" + techLevel + "\n\n[gold]All time score record: [scarlet]" + mapDB.safeGet(mapID, "allRecord") +
                 "\n[accent]Monthly score record: [scarlet]" + mapDB.safeGet(mapID, "monthRecord") + "\n[accent]Survive until wave [scarlet]" +
                 launchWave + "[accent] to launch and win!";
         return ret;
