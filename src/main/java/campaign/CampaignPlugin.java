@@ -60,6 +60,7 @@ public class CampaignPlugin extends Plugin{
                 Call.sendMessage("[scarlet]LAUNCH WAVE!\n[accent]Survive this to be able to launch");
                 finalWave = true;
                 state.rules.waitForWaveToEnd = true;
+                state.rules.waveSpacing = 5000;
             }else if((launchWave - wave) % 5 == 0){
                 Call.sendMessage("[scarlet]" + (launchWave - wave) + "[accent] waves remain");
             }
@@ -92,7 +93,7 @@ public class CampaignPlugin extends Plugin{
                     break;
                 }
             }
-            if(allDead && finalWave) endgame(true);
+            if(event.unit.getTeam() == Team.crux && allDead && finalWave) endgame(true);
 
         });
 
@@ -225,6 +226,21 @@ public class CampaignPlugin extends Plugin{
 
         });
 
+        handler.<Player>register("stats", "Display the stats for this map", (args, player) -> {
+            player.sendMessage("[gold]All time score record: [scarlet]" + mapDB.safeGet(mapID, "allRecord") +
+                    "\n[accent]Monthly score record: [scarlet]" + mapDB.safeGet(mapID, "monthRecord") +
+                    "\n[accent]Total times beaten: [scarlet]" + mapDB.safeGet(mapID, "wins") +
+                    "\n[accent]Total times failed: [scarlet]" + mapDB.safeGet(mapID, "losses"));
+        });
+
+        handler.<Player>register("waves", "Show how many waves remain", (args, player) -> {
+            player.sendMessage("[scarlet]" + (launchWave - wave) + "[accent] waves remain");
+        });
+
+        handler.<Player>register("score", "Display the teams current score", (args, player) -> {
+            player.sendMessage("[gold]Score: [scarlet]" + calculateScore());
+        });
+
         handler.<Player>register("start", "[sky]Start the next wave (donators only)", (args, player) -> {
             if(player.donateLevel < 1){
                 player.sendMessage("[accent]Only donators have access to this command");
@@ -245,17 +261,6 @@ public class CampaignPlugin extends Plugin{
                 player.sendMessage("[accent]Can not start the next wave until previous wave is cleared!");
             }
 
-        });
-
-        handler.<Player>register("stats", "Display the stats for this map", (args, player) -> {
-            player.sendMessage("[gold]All time score record: [scarlet]" + mapDB.safeGet(mapID, "allRecord") +
-                    "\n[accent]Monthly score record: [scarlet]" + mapDB.safeGet(mapID, "monthRecord") +
-                    "\n[accent]Total times beaten: [scarlet]" + mapDB.safeGet(mapID, "wins") +
-                    "\n[accent]Total times failed: [scarlet]" + mapDB.safeGet(mapID, "losses"));
-        });
-
-        handler.<Player>register("score", "Display the teams current score", (args, player) -> {
-            player.sendMessage("[gold]Score: [scarlet]" + calculateScore());
         });
 
     }
@@ -316,6 +321,10 @@ public class CampaignPlugin extends Plugin{
 
             Call.onInfoMessage(s);
         }else{
+            int nextMap = currMap;
+            while(nextMap == currMap) {
+                nextMap = rand.nextInt(maps.customMaps().size - 1);
+            }
             mapDB.safePut(mapID, "losses", (int) mapDB.safeGet(mapID, "losses") + 1);
             Call.onInfoMessage("[scarlet]Bad luck! You died.");
         }
@@ -339,7 +348,10 @@ public class CampaignPlugin extends Plugin{
 
     void savePlayerData(String uuid){
         Log.info("Saving " + uuid + " data...");
-        playerDB.saveRow(uuid);
+        if(playerDB.entries.containsKey(uuid)){
+            playerDB.saveRow(uuid);
+        }
+
     }
 
     int calculateScore(){
