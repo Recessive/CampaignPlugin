@@ -30,6 +30,7 @@ public class CampaignPlugin extends Plugin{
     private int techLevel;
     private int wave = 0;
     private boolean finalWave = false;
+    private int deadUnits = 0;
 
     private final Rules rules = new Rules();
     private int currMap;
@@ -52,8 +53,8 @@ public class CampaignPlugin extends Plugin{
         Events.on(EventType.WaveEvent.class, event ->{
 
             for(Player player : playerGroup.all()){
-                playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 10*(player.donateLevel + 1));
-                player.sendMessage("[accent]+[scarlet]" + 10*(player.donateLevel + 1) + "[accent] xp for surviving");
+                playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 30*(player.donateLevel + 1));
+                player.sendMessage("[accent]+[scarlet]" + 30*(player.donateLevel + 1) + "[accent] xp for surviving");
             }
             wave ++;
             if(wave == launchWave){
@@ -94,6 +95,15 @@ public class CampaignPlugin extends Plugin{
                 }
             }
             if(event.unit.getTeam() == Team.crux && allDead && finalWave) endgame(true);
+            if(event.unit.getTeam() == Team.crux){
+                deadUnits ++;
+                if(deadUnits == 100){
+                    for(Player player : playerGroup.all()){
+                        playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 10*(player.donateLevel + 1));
+                        player.sendMessage("[accent]+[scarlet]" + 10*(player.donateLevel + 1) + "[accent] xp for killing 100 units");
+                    }
+                }
+            }
 
         });
 
@@ -209,7 +219,6 @@ public class CampaignPlugin extends Plugin{
 
         handler.<Player>register("xp", "[sky]Show your xp", (args, player) -> {
             int xp = (int) playerDB.safeGet(player.uuid, "xp");
-            int leftover = xp % 60000;
 
             String s = "[scarlet]" + xp + "[accent] xp\n";/*nGet [scarlet]" + leftover + "[accent] more xp for 1 additional ";
             if(leftover < 10000){
@@ -221,8 +230,8 @@ public class CampaignPlugin extends Plugin{
             }
             s += "[accent] boost!\n";*/
 
-            String nextRank = StringHandler.determineRank(xp+50000);
-            player.sendMessage(s + "Reach [scarlet]" + (xp/50000+1)*50000 + "[accent] xp to reach " + nextRank + "[accent] rank.");
+            String nextRank = StringHandler.determineRank(xp+10000);
+            player.sendMessage(s + "Reach [scarlet]" + (xp/10000+1)*10000 + "[accent] xp to reach " + nextRank + "[accent] rank.");
 
         });
 
@@ -325,6 +334,8 @@ public class CampaignPlugin extends Plugin{
             while(nextMap == currMap) {
                 nextMap = rand.nextInt(maps.customMaps().size - 1);
             }
+
+            prefs.putInt("mapchoice", nextMap);
             mapDB.safePut(mapID, "losses", (int) mapDB.safeGet(mapID, "losses") + 1);
             Call.onInfoMessage("[scarlet]Bad luck! You died.");
         }
