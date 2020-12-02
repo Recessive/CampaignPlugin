@@ -1,4 +1,4 @@
-package campaign;
+package main;
 
 import arc.util.Time;
 

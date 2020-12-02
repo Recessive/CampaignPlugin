@@ -1,7 +1,7 @@
-package campaign;
+package main;
 
-import arc.struct.Array;
 import arc.struct.ObjectSet;
+import arc.struct.Seq;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
@@ -30,24 +30,24 @@ public class CampaignData {
         itemValues = Collections.unmodifiableMap(aMap);
     }
 
-    public static final Array<ItemStack> tech0loadout;
+    public static final Seq<ItemStack> tech0loadout;
     static {
         tech0loadout = ItemStack.list(Items.copper, 500, Items.lead, 500);
     }
 
-    public static final Array<ItemStack> tech1loadout;
+    public static final Seq<ItemStack> tech1loadout;
     static {
         tech1loadout = ItemStack.list(Items.copper, 1000, Items.lead, 1000,
                 Items.graphite, 500);
     }
 
-    public static final Array<ItemStack> tech2loadout;
+    public static final Seq<ItemStack> tech2loadout;
     static {
         tech2loadout = ItemStack.list(Items.copper, 2000, Items.lead, 2000,
                 Items.graphite, 1000, Items.titanium, 1000, Items.silicon, 500, Items.metaglass, 500);
     }
 
-    public static final Array<ItemStack> tech3loadout;
+    public static final Seq<ItemStack> tech3loadout;
     static {
         tech3loadout = ItemStack.list(Items.copper, 4000, Items.lead, 4000,
                 Items.graphite, 2000, Items.titanium, 2000, Items.silicon, 1000, Items.metaglass, 1000);
@@ -92,10 +92,8 @@ public class CampaignData {
         tech1Banned.remove(Blocks.graphitePress);
         tech1Banned.remove(Blocks.kiln);
         tech1Banned.remove(Blocks.incinerator);
-        tech1Banned.remove(Blocks.dartPad);
         tech1Banned.remove(Blocks.mender);
         tech1Banned.remove(Blocks.message);
-        tech1Banned.remove(Blocks.draugFactory);
         tech1Banned.remove(Blocks.combustionGenerator);
     }
 
@@ -126,11 +124,6 @@ public class CampaignData {
         tech2Banned.add(Blocks.phaseWeaver);
         tech2Banned.add(Blocks.surgeSmelter);
         tech2Banned.add(Blocks.plastaniumCompressor);
-        tech2Banned.add(Blocks.revenantFactory);
-        tech2Banned.add(Blocks.omegaPad);
-        tech2Banned.add(Blocks.javelinPad);
-        tech2Banned.add(Blocks.tridentPad);
-        tech2Banned.add(Blocks.glaivePad);
         tech2Banned.add(Blocks.overdriveProjector);
     }
     public static final ObjectSet<Block> tech3Banned;

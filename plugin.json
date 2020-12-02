@@ -1,7 +1,7 @@
 {
   "name": "CampaingPlugin",
   "author": "Recessive",
-  "main": "campaign.CampaignPlugin",
+  "main": "main.CampaignPlugin",
   "description": "Campaign Plugin.",
-  "version": 0.0
+  "version": 0.1
 }

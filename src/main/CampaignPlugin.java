@@ -1,15 +1,14 @@
-package campaign;
+package main;
 
 import arc.*;
 import arc.util.*;
 import mindustry.*;
 import mindustry.content.*;
 import mindustry.core.GameState;
-import mindustry.entities.type.*;
 import mindustry.game.*;
 import mindustry.game.EventType.*;
 import mindustry.gen.*;
-import mindustry.plugin.Plugin;
+import mindustry.mod.Plugin;
 import mindustry.type.Item;
 import mindustry.type.ItemStack;
 import mindustry.world.blocks.storage.CoreBlock;
@@ -21,7 +20,7 @@ import java.util.prefs.Preferences;
 import static mindustry.Vars.*;
 import static mindustry.Vars.netServer;
 
-public class CampaignPlugin extends Plugin{
+public class CampaignPlugin extends Plugin {
 
     private Random rand = new Random(System.currentTimeMillis());
 
@@ -52,15 +51,15 @@ public class CampaignPlugin extends Plugin{
 
         Events.on(EventType.WaveEvent.class, event ->{
 
-            for(Player player : playerGroup.all()){
-                playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 30*(player.donateLevel + 1));
+            for(Player player : Groups.player){
+                playerDB.safePut(player.uuid(), "xp", (int) playerDB.safeGet(player.uuid(), "xp") + 30*(player.donateLevel + 1));
                 player.sendMessage("[accent]+[scarlet]" + 30*(player.donateLevel + 1) + "[accent] xp for surviving");
             }
             wave ++;
             if(wave == launchWave){
                 Call.sendMessage("[scarlet]LAUNCH WAVE!\n[accent]Survive this to be able to launch");
                 finalWave = true;
-                state.rules.waitForWaveToEnd = true;
+                state.rules.waitEnemies = true;
                 state.rules.waveSpacing = 5000;
             }else if((launchWave - wave) % 5 == 0){
                 Call.sendMessage("[scarlet]" + (launchWave - wave) + "[accent] waves remain");
@@ -69,53 +68,54 @@ public class CampaignPlugin extends Plugin{
 
         Events.on(EventType.PlayerJoinSecondary.class, event ->{
             event.player.sendMessage(motd());
-            if(!playerDB.hasRow(event.player.uuid)){
-                playerDB.addRow(event.player.uuid);
+            if(!playerDB.hasRow(event.player.uuid())){
+                playerDB.addRow(event.player.uuid());
             }
-            playerDB.loadRow(event.player.uuid);
+            playerDB.loadRow(event.player.uuid());
 
-            if(!uuidMapping.containsKey(event.player.uuid)){
-                int xp = (int) playerDB.safeGet(event.player.uuid, "xp");
-                uuidMapping.put(event.player.uuid, new CustomPlayer(event.player, xp));
+            if(!uuidMapping.containsKey(event.player.uuid())){
+                int xp = (int) playerDB.safeGet(event.player.uuid(), "xp");
+                uuidMapping.put(event.player.uuid(), new CustomPlayer(event.player, xp));
             }
 
-            event.player.name = StringHandler.determineRank((int) playerDB.safeGet(event.player.uuid, "xp")) + " " + event.player.name;
+            event.player.name = StringHandler.determineRank((int) playerDB.safeGet(event.player.uuid(), "xp")) + " " + event.player.name;
 
         });
 
         Events.on(EventType.UnitDestroyEvent.class, event ->{
             boolean allDead = true;
-            for(Unit unit : unitGroup.all()){
+            for(Unit unit : Groups.unit){
                 if(event.unit == unit){
                     continue;
                 }
-                if(unit.getTeam() == Team.crux){
+                if(unit.team() == Team.crux){
                     allDead = false;
                     break;
                 }
             }
-            if(event.unit.getTeam() == Team.crux && allDead && finalWave) endgame(true);
-            if(event.unit.getTeam() == Team.crux){
+            if(event.unit.team() == Team.crux && allDead && finalWave) endgame(true);
+            if(event.unit.team() == Team.crux){
                 deadUnits ++;
                 if(deadUnits == 100){
-                    for(Player player : playerGroup.all()){
-                        playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 10*(player.donateLevel + 1));
+                    for(Player player : Groups.player){
+                        playerDB.safePut(player.uuid(), "xp", (int) playerDB.safeGet(player.uuid(), "xp") + 10*(player.donateLevel + 1));
                         player.sendMessage("[accent]+[scarlet]" + 10*(player.donateLevel + 1) + "[accent] xp for killing 100 units");
                     }
+                    deadUnits = 0;
                 }
             }
 
         });
 
         Events.on(EventType.BlockDestroyEvent.class, event ->{
-            if(event.tile.block() instanceof CoreBlock && event.tile.getTeam().cores().size == 1){
+            if(event.tile.block() instanceof CoreBlock && event.tile.team().cores().size == 1){
                 endgame(false);
             }
 
         });
 
         Events.on(EventType.PlayerLeave.class, event -> {
-            savePlayerData(event.player.uuid);
+            savePlayerData(event.player.uuid());
         });
     }
 
@@ -145,7 +145,7 @@ public class CampaignPlugin extends Plugin{
             Log.info("Loading map " + map.name());
             world.loadMap(map);
             loadedMap = map;
-            String[] values = world.getMap().description().replaceAll("\\s+","").split(",");
+            String[] values = state.map.description().replaceAll("\\s+","").split(",");
             launchWave = Integer.parseInt(values[0]);
             techLevel = Integer.parseInt(values[1]);
             switch(techLevel){
@@ -154,10 +154,10 @@ public class CampaignPlugin extends Plugin{
                 case 2: rules.bannedBlocks = CampaignData.tech2Banned; rules.loadout = CampaignData.tech2loadout; break;
                 case 3: rules.bannedBlocks = CampaignData.tech3Banned; rules.loadout = CampaignData.tech3loadout; break;
             }
-            rules.spawns = world.getMap().rules().spawns;
-            rules.waveSpacing = world.getMap().rules().waveSpacing;
-            rules.launchWaveMultiplier = 3;
-            rules.bossWaveMultiplier = 3;
+            rules.spawns = state.map.rules().spawns;
+            rules.waveSpacing = state.map.rules().waveSpacing;
+            /*rules.launchWaveMultiplier = 3;
+            rules.bossWaveMultiplier = 3;*/
 
             Log.info("Map " + map.name() + " loaded");
 
@@ -218,7 +218,7 @@ public class CampaignPlugin extends Plugin{
 
 
         handler.<Player>register("xp", "[sky]Show your xp", (args, player) -> {
-            int xp = (int) playerDB.safeGet(player.uuid, "xp");
+            int xp = (int) playerDB.safeGet(player.uuid(), "xp");
 
             String s = "[scarlet]" + xp + "[accent] xp\n";/*nGet [scarlet]" + leftover + "[accent] more xp for 1 additional ";
             if(leftover < 10000){
@@ -257,8 +257,8 @@ public class CampaignPlugin extends Plugin{
             }
 
             boolean allDead = true;
-            for(Unit unit : unitGroup.all()){
-                if(unit.getTeam() == Team.crux){
+            for(Unit unit : Groups.unit){
+                if(unit.team() == Team.crux){
                     allDead = false;
                     break;
                 }
@@ -276,9 +276,8 @@ public class CampaignPlugin extends Plugin{
 
 
     void init_rules(){
-        rules.waitForWaveToEnd = false;
-        rules.respawnTime = 5 * 60;
-        rules.enemyCheat = true;
+        rules.waitEnemies = false;
+        // rules.enemyCheat = true;
         rules.waves = true;
         rules.buildSpeedMultiplier = 1.5f;
         rules.canGameOver = false;
@@ -289,8 +288,8 @@ public class CampaignPlugin extends Plugin{
     void endgame(boolean win){
         if(win){
 
-            for(Player player : playerGroup.all()){
-                playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 500*(player.donateLevel + 1));
+            for(Player player : Groups.player){
+                playerDB.safePut(player.uuid(), "xp", (int) playerDB.safeGet(player.uuid(), "xp") + 500*(player.donateLevel + 1));
                 player.sendMessage("[accent]+[scarlet]" + 500*(player.donateLevel + 1) + "[accent] xp for escaping");
             }
 
@@ -309,15 +308,15 @@ public class CampaignPlugin extends Plugin{
                 mapDB.safePut(mapID, "allRecord", score);
                 mapDB.safePut(mapID, "monthRecord", score);
                 s += "[gold]New all time score record!\n\n";
-                for(Player player : playerGroup.all()){
-                    playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 500*(player.donateLevel + 1));
+                for(Player player : Groups.player){
+                    playerDB.safePut(player.uuid(), "xp", (int) playerDB.safeGet(player.uuid(), "xp") + 500*(player.donateLevel + 1));
                     player.sendMessage("[gold]+[scarlet]" + 500*(player.donateLevel + 1) + "[gold] xp for setting an all time record!");
                 }
             }else if(score > (int) mapDB.safeGet(mapID, "monthRecord")){
                 mapDB.safePut(mapID, "monthRecord", score);
                 s += "[acid]New monthly score record!\n\n";
-                for(Player player : playerGroup.all()){
-                    playerDB.safePut(player.uuid, "xp", (int) playerDB.safeGet(player.uuid, "xp") + 100*(player.donateLevel + 1));
+                for(Player player : Groups.player){
+                    playerDB.safePut(player.uuid(), "xp", (int) playerDB.safeGet(player.uuid(), "xp") + 100*(player.donateLevel + 1));
                     player.sendMessage("[accent]+[scarlet]" + 100*(player.donateLevel + 1) + "[accent] xp for setting a monthly record!");
                 }
             }
@@ -328,7 +327,7 @@ public class CampaignPlugin extends Plugin{
             mapDB.safePut(mapID, "wins", (int) mapDB.safeGet(mapID, "wins") + 1);
 
 
-            Call.onInfoMessage(s);
+            Call.infoMessage(s);
         }else{
             int nextMap = currMap;
             while(nextMap == currMap) {
@@ -337,7 +336,7 @@ public class CampaignPlugin extends Plugin{
 
             prefs.putInt("mapchoice", nextMap);
             mapDB.safePut(mapID, "losses", (int) mapDB.safeGet(mapID, "losses") + 1);
-            Call.onInfoMessage("[scarlet]Bad luck! You died.");
+            Call.infoMessage("[scarlet]Bad luck! You died.");
         }
 
 
@@ -345,8 +344,8 @@ public class CampaignPlugin extends Plugin{
         Time.runTask(60f * 20f, () -> {
             mapDB.saveRow(mapID);
 
-            for(Player player : playerGroup.all()) {
-                Call.onConnect(player.con, "aamindustry.play.ai", 6567);
+            for(Player player : Groups.player) {
+                Call.connect(player.con, "aamindustry.play.ai", 6567);
             }
 
 
@@ -367,7 +366,7 @@ public class CampaignPlugin extends Plugin{
 
     int calculateScore(){
         int score = 0;
-        for(CoreBlock.CoreEntity core: Team.sharded.cores()){
+        for(CoreBlock.CoreBuild core: Team.sharded.cores()){
             for(Item i: content.items()){
                 if(CampaignData.itemValues.containsKey(i.name)) score += core.items.get(i) * CampaignData.itemValues.get(i.name);
             }

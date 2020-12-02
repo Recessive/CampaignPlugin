@@ -1,7 +1,7 @@
-package campaign;
+package main;
 
-import mindustry.entities.type.Player;
 import mindustry.game.Team;
+import mindustry.gen.Player;
 
 public class CustomPlayer {
 
