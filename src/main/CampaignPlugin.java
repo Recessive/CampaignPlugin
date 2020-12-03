@@ -127,6 +127,7 @@ public class CampaignPlugin extends Plugin {
                     }
                     uuidMapping.get(event.player.uuid()).coresLeft -= 1;
                     event.tile.build.tile.setNet(Blocks.coreShard, event.tile.team(), 0);
+                    event.player.sendMessage("[accent]You placed a core shard!");
                 }
             }
         });
