@@ -10,6 +10,7 @@ public class CustomPlayer {
     public int boost1Calls = 0;
     public int boost2Calls = 0;
     public int boost3Calls = 0;
+    public int coresLeft = 1;
 
 
     public CustomPlayer(Player player, int xp){

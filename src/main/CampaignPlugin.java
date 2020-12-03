@@ -117,6 +117,19 @@ public class CampaignPlugin extends Plugin {
         Events.on(EventType.PlayerLeave.class, event -> {
             savePlayerData(event.player.uuid());
         });
+
+        Events.on(EventType.TapEvent.class, event ->{
+            if(event.tile.block() == Blocks.vault && event.tile.team() != Team.purple){
+                if(event.tile.build.items.has(Items.thorium, 997)){
+                    if(uuidMapping.get(event.player.uuid()).coresLeft < 1){
+                        event.player.sendMessage("[accent]You can only place 1 core shard per game!");
+                        return;
+                    }
+                    uuidMapping.get(event.player.uuid()).coresLeft -= 1;
+                    event.tile.build.tile.setNet(Blocks.coreShard, event.tile.team(), 0);
+                }
+            }
+        });
     }
 
 
@@ -286,6 +299,7 @@ public class CampaignPlugin extends Plugin {
 
 
     void endgame(boolean win){
+        Log.info("Ending the game...");
         if(win){
 
             for(Player player : Groups.player){
