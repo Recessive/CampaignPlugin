@@ -44,7 +44,7 @@ public class CampaignPlugin extends Plugin {
     @Override
     public void init(){
 
-        mapDB.connect("data/server_data.db");
+        mapDB.connect("../network-files/campaign_data.db");
         playerDB.connect(mapDB.conn);
 
         init_rules();
@@ -127,7 +127,8 @@ public class CampaignPlugin extends Plugin {
                     }
                     uuidMapping.get(event.player.uuid()).coresLeft -= 1;
                     event.tile.build.tile.setNet(Blocks.coreShard, event.tile.team(), 0);
-                    event.player.sendMessage("[accent]You placed a core shard!");
+                    event.player.sendMessage("[accent]You placed a core shard! " +
+                            "(by filling a vault with thorium and tapping/clicking it)");
                 }
             }
         });
